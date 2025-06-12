@@ -8,6 +8,7 @@ const AdVariationGenerator = () => {
   const [variations, setVariations] = useState([]);
   const fileInputRef = useRef(null);
 
+  // Handles image file selection and sets up a preview.
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
     if (file && file.type.startsWith('image/')) {
@@ -15,17 +16,21 @@ const AdVariationGenerator = () => {
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target.result);
-        analyzeImage();
+        analyzeImage(); // Trigger analysis after image is loaded
       };
       reader.readAsDataURL(file);
     } else {
-      alert('Please select a valid image file.');
+      // Use a custom message box instead of alert() for better UX.
+      // For this example, we'll keep it simple, but in a real app,
+      // you'd render a modal or toast notification.
+      console.warn('Please select a valid image file.');
     }
   };
 
+  // Simulates AI analysis of the uploaded image to generate variations.
   const analyzeImage = () => {
     setIsAnalyzing(true);
-    // Simulate AI analysis with more realistic timing
+    // Simulate AI analysis with more realistic timing using a setTimeout
     setTimeout(() => {
       const generatedVariations = [
         {
@@ -86,19 +91,22 @@ const AdVariationGenerator = () => {
       ];
       setVariations(generatedVariations);
       setIsAnalyzing(false);
-    }, 2500);
+    }, 2500); // Simulate a 2.5 second analysis time
   };
 
+  // Resets the image upload and analysis state.
   const resetUpload = () => {
     setUploadedImage(null);
     setImagePreview(null);
     setVariations([]);
     setIsAnalyzing(false);
+    // Clear the file input value to allow re-uploading the same file
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
+  // Determines the priority color for variation suggestions.
   const getPriorityColor = (priority) => {
     switch (priority) {
       case 'Critical': return 'bg-red-100 text-red-800 border-red-200';
@@ -109,23 +117,25 @@ const AdVariationGenerator = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 font-sans">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
+        {/* Header Section */}
         <div className="text-center mb-12">
           <div className="flex items-center justify-center mb-4">
             <Zap className="w-8 h-8 text-purple-600 mr-3" />
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            <h1 className="text-4xl sm:text-5xl font-extrabold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
               AI Ad Variation Generator
             </h1>
           </div>
-          <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+          <p className="text-gray-600 text-lg sm:text-xl max-w-2xl mx-auto">
             Upload your ad image and get AI-powered suggestions for A/B testing variations 
             to optimize your campaign performance
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-8 max-w-7xl mx-auto">
+        {/* Main Content Area: Upload and Suggestions Sections (now stacked) */}
+        {/* Removed grid classes to ensure vertical stacking on all screen sizes */}
+        <div className="max-w-4xl mx-auto space-y-8"> {/* Added space-y-8 for vertical gap */}
           {/* Upload Section */}
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
@@ -154,17 +164,17 @@ const AdVariationGenerator = () => {
                   <img 
                     src={imagePreview} 
                     alt="Uploaded ad" 
-                    className="max-h-64 mx-auto rounded-lg shadow-lg object-contain"
+                    className="max-h-64 w-full object-contain mx-auto rounded-lg shadow-lg"
                   />
                   <div className="text-sm text-gray-600">
                     Click to upload a different image
                   </div>
                   <button
                     onClick={(e) => {
-                      e.stopPropagation();
+                      e.stopPropagation(); // Prevents triggering the parent div's onClick
                       resetUpload();
                     }}
-                    className="ml-4 px-4 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                    className="mt-2 px-4 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
                   >
                     Remove Image
                   </button>
@@ -191,7 +201,7 @@ const AdVariationGenerator = () => {
             )}
           </div>
 
-          {/* Results Section */}
+          {/* Results Section (now below the Upload Section) */}
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
               <Lightbulb className="w-6 h-6 mr-2 text-purple-600" />
