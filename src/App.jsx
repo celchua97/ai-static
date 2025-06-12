@@ -1,11 +1,14 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Zap, Palette, Type, Image, Target, Lightbulb, Download } from 'lucide-react';
+import { Upload, Zap, Palette, Type, Image, Target, Lightbulb, Download, Wand2 } from 'lucide-react';
 
 const AdVariationGenerator = () => {
   const [uploadedImage, setUploadedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [variations, setVariations] = useState([]);
+  const [adDescription, setAdDescription] = useState(''); // New state for user's ad description
+  const [aiGeneratedCopy, setAiGeneratedCopy] = useState(''); // New state for AI-generated copy
+  const [isGeneratingCopy, setIsGeneratingCopy] = useState(false); // Loading state for AI copy generation
   const fileInputRef = useRef(null);
 
   // Handles image file selection and sets up a preview.
@@ -24,6 +27,55 @@ const AdVariationGenerator = () => {
       // For this example, we'll keep it simple, but in a real app,
       // you'd render a modal or toast notification.
       console.warn('Please select a valid image file.');
+    }
+  };
+
+  // Function to generate ad copy using the Gemini API
+  const generateAdCopy = async () => {
+    if (!adDescription.trim()) {
+      setAiGeneratedCopy("Please enter a description for the ad copy generation.");
+      return;
+    }
+
+    setIsGeneratingCopy(true);
+    setAiGeneratedCopy(''); // Clear previous results
+
+    try {
+      let chatHistory = [];
+      const prompt = `Generate a compelling ad copy based on the following description. Focus on catchy headlines and engaging body text suitable for online advertisements. Also, include a clear Call-to-Action.
+      
+      Ad Description: "${adDescription}"
+      
+      Provide a few variations if possible.`;
+      
+      chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+      const payload = { contents: chatHistory };
+      const apiKey = ""; // Canvas will automatically provide the API key at runtime
+
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+
+      if (result.candidates && result.candidates.length > 0 &&
+          result.candidates[0].content && result.candidates[0].content.parts &&
+          result.candidates[0].content.parts.length > 0) {
+        const text = result.candidates[0].content.parts[0].text;
+        setAiGeneratedCopy(text);
+      } else {
+        setAiGeneratedCopy("Failed to generate ad copy. Please try again or refine your description.");
+        console.error("Gemini API response structure unexpected:", result);
+      }
+    } catch (error) {
+      setAiGeneratedCopy("An error occurred while generating ad copy. Please check your network connection.");
+      console.error("Error calling Gemini API:", error);
+    } finally {
+      setIsGeneratingCopy(false);
     }
   };
 
@@ -91,7 +143,12 @@ const AdVariationGenerator = () => {
       ];
       setVariations(generatedVariations);
       setIsAnalyzing(false);
-    }, 2500); // Simulate a 2.5 second analysis time
+    }, 1500); // Simulate a 1.5 second analysis time for image-based suggestions
+    
+    // Also trigger ad copy generation if there's a description
+    if (adDescription.trim()) {
+      generateAdCopy();
+    }
   };
 
   // Resets the image upload and analysis state.
@@ -100,6 +157,9 @@ const AdVariationGenerator = () => {
     setImagePreview(null);
     setVariations([]);
     setIsAnalyzing(false);
+    setAdDescription(''); // Reset ad description
+    setAiGeneratedCopy(''); // Reset AI-generated copy
+    setIsGeneratingCopy(false); // Reset copy generation loading
     // Clear the file input value to allow re-uploading the same file
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -134,8 +194,7 @@ const AdVariationGenerator = () => {
         </div>
 
         {/* Main Content Area: Upload and Suggestions Sections (now stacked) */}
-        {/* Removed grid classes to ensure vertical stacking on all screen sizes */}
-        <div className="max-w-4xl mx-auto space-y-8"> {/* Added space-y-8 for vertical gap */}
+        <div className="max-w-4xl mx-auto space-y-8">
           {/* Upload Section */}
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
@@ -171,7 +230,7 @@ const AdVariationGenerator = () => {
                   </div>
                   <button
                     onClick={(e) => {
-                      e.stopPropagation(); // Prevents triggering the parent div's onClick
+                      e.stopPropagation(); 
                       resetUpload();
                     }}
                     className="mt-2 px-4 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
@@ -191,6 +250,38 @@ const AdVariationGenerator = () => {
               )}
             </div>
 
+            {/* Input for Ad Description */}
+            <div className="mt-6">
+              <label htmlFor="ad-description" className="block text-sm font-medium text-gray-700 mb-2">
+                Or, tell us about your ad:
+              </label>
+              <textarea
+                id="ad-description"
+                rows="3"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors text-gray-700"
+                placeholder="e.g., 'Promote a new eco-friendly water bottle for fitness enthusiasts, highlight durability and sleek design.'"
+                value={adDescription}
+                onChange={(e) => setAdDescription(e.target.value)}
+              ></textarea>
+              <button
+                onClick={generateAdCopy}
+                className="mt-4 w-full flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                disabled={isGeneratingCopy}
+              >
+                {isGeneratingCopy ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                    Generating Copy...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-5 h-5 mr-2" />
+                    Generate Ad Copy
+                  </>
+                )}
+              </button>
+            </div>
+
             {isAnalyzing && (
               <div className="mt-6 text-center">
                 <div className="inline-flex items-center px-6 py-3 bg-purple-100 rounded-full">
@@ -201,7 +292,33 @@ const AdVariationGenerator = () => {
             )}
           </div>
 
-          {/* Results Section (now below the Upload Section) */}
+          {/* AI Generated Copy Section */}
+          {(aiGeneratedCopy || isGeneratingCopy) && (
+            <div className="bg-white rounded-2xl shadow-xl p-8">
+              <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
+                <Wand2 className="w-6 h-6 mr-2 text-blue-600" />
+                AI Generated Ad Copy
+              </h2>
+              {isGeneratingCopy ? (
+                <div className="text-center py-6">
+                  <div className="inline-flex items-center px-6 py-3 bg-blue-100 rounded-full">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
+                    <span className="text-blue-700 font-medium">Crafting your copy...</span>
+                  </div>
+                </div>
+              ) : (
+                aiGeneratedCopy && (
+                  <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed">
+                    {aiGeneratedCopy.split('\n').map((paragraph, idx) => (
+                      <p key={idx} className="mb-2">{paragraph}</p>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
+          )}
+
+          {/* A/B Testing Suggestions Section */}
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center">
               <Lightbulb className="w-6 h-6 mr-2 text-purple-600" />
@@ -211,7 +328,7 @@ const AdVariationGenerator = () => {
             {variations.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg">Upload an image to get AI-powered variation suggestions</p>
+                <p className="text-lg">Upload an image or provide a description to get AI-powered suggestions</p>
                 <p className="text-sm mt-2">Our AI will analyze your ad and provide tailored A/B testing recommendations</p>
               </div>
             ) : (
@@ -277,3 +394,4 @@ const AdVariationGenerator = () => {
 };
 
 export default AdVariationGenerator;
+
