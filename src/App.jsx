@@ -1,31 +1,50 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Zap, Palette, Type, Image, Target, Lightbulb, Download, Wand2 } from 'lucide-react';
 
+// Map icon names from API response to Lucide React components
+const iconMap = {
+  "Type": Type,
+  "Palette": Palette,
+  "Target": Target,
+  "Image": Image,
+  "Lightbulb": Lightbulb,
+  // Add other Lucide icons here if you expand the API response
+  "Wand2": Wand2 // For the AI copy generation section
+};
+
 const AdVariationGenerator = () => {
   const [uploadedImage, setUploadedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [variations, setVariations] = useState([]);
-  const [adDescription, setAdDescription] = useState(''); // New state for user's ad description
-  const [aiGeneratedCopy, setAiGeneratedCopy] = useState(''); // New state for AI-generated copy
-  const [isGeneratingCopy, setIsGeneratingCopy] = useState(false); // Loading state for AI copy generation
+  const [adDescription, setAdDescription] = useState('');
+  const [aiGeneratedCopy, setAiGeneratedCopy] = useState('');
+  const [isGeneratingCopy, setIsGeneratingCopy] = useState(false);
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false); // New loading state for image analysis
   const fileInputRef = useRef(null);
 
+  // Function to convert File object to Base64 string
+  const fileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result.split(',')[1]); // Get only the Base64 part
+      reader.onerror = error => reject(error);
+    });
+  };
+
   // Handles image file selection and sets up a preview.
-  const handleImageUpload = (event) => {
+  const handleImageUpload = async (event) => {
     const file = event.target.files[0];
     if (file && file.type.startsWith('image/')) {
       setUploadedImage(file);
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         setImagePreview(e.target.result);
-        analyzeImage(); // Trigger analysis after image is loaded
+        await analyzeImage(file); // Pass the file directly for API analysis
       };
       reader.readAsDataURL(file);
     } else {
-      // Use a custom message box instead of alert() for better UX.
-      // For this example, we'll keep it simple, but in a real app,
-      // you'd render a modal or toast notification.
       console.warn('Please select a valid image file.');
     }
   };
@@ -73,94 +92,136 @@ const AdVariationGenerator = () => {
       }
     } catch (error) {
       setAiGeneratedCopy("An error occurred while generating ad copy. Please check your network connection.");
-      console.error("Error calling Gemini API:", error);
+      console.error("Error calling Gemini API for copy generation:", error);
     } finally {
       setIsGeneratingCopy(false);
     }
   };
 
-  // Simulates AI analysis of the uploaded image to generate variations.
-  const analyzeImage = () => {
-    setIsAnalyzing(true);
-    // Simulate AI analysis with more realistic timing using a setTimeout
-    setTimeout(() => {
-      const generatedVariations = [
-        {
-          category: "Headlines & Copy",
-          icon: <Type className="w-5 h-5 text-purple-600" />,
-          suggestions: [
-            "Test emotional vs rational headlines (e.g., 'Transform Your Life' vs '50% More Efficient')",
-            "A/B test question-based headlines vs statement headlines",
-            "Try urgency-driven copy ('Limited Time') vs benefit-focused copy",
-            "Test first-person vs second-person messaging ('I saved' vs 'You'll save')"
-          ],
-          priority: "High"
-        },
-        {
-          category: "Visual Elements",
-          icon: <Palette className="w-5 h-5 text-purple-600" />,
-          suggestions: [
-            "Test warm color scheme (oranges, reds) vs cool colors (blues, greens)",
-            "Try minimalist design vs information-rich layout",
-            "A/B test product-focused vs lifestyle-focused imagery",
-            "Experiment with different background textures or gradients"
-          ],
-          priority: "High"
-        },
-        {
-          category: "Call-to-Action",
-          icon: <Target className="w-5 h-5 text-purple-600" />,
-          suggestions: [
-            "Test button colors: high contrast vs brand colors",
-            "Try different CTA text: 'Get Started' vs 'Try Now' vs 'Learn More'",
-            "Experiment with CTA placement: center vs right-aligned",
-            "Test button shapes: rounded vs sharp corners"
-          ],
-          priority: "Critical"
-        },
-        {
-          category: "Layout & Composition",
-          icon: <Image className="w-5 h-5 text-purple-600" />,
-          suggestions: [
-            "Test vertical vs horizontal layout orientation",
-            "Try left-aligned vs centered text placement",
-            "Experiment with white space: compact vs spacious design",
-            "A/B test single focal point vs multiple visual elements"
-          ],
-          priority: "Medium"
-        },
-        {
-          category: "Social Proof",
-          icon: <Lightbulb className="w-5 h-5 text-purple-600" />,
-          suggestions: [
-            "Add customer testimonials vs remove all text",
-            "Test star ratings vs customer count ('500+ happy customers')",
-            "Try logo badges vs written endorsements",
-            "Experiment with before/after imagery vs single product shot"
-          ],
-          priority: "Medium"
+  // Analyzes the uploaded image using Gemini API to generate A/B testing suggestions.
+  const analyzeImage = async (imageFile) => {
+    if (!imageFile) {
+      setVariations([]);
+      return;
+    }
+
+    setIsAnalyzingImage(true);
+    setVariations([]); // Clear previous variations
+
+    try {
+      const base64ImageData = await fileToBase64(imageFile);
+      const prompt = `Analyze this ad image and provide concrete A/B testing suggestions based on its visual elements, layout, and potential messaging. Focus on variations that could improve its performance.
+      
+      Provide the suggestions as a JSON array of objects, where each object has:
+      - "category": (string, e.g., "Visual Elements", "Layout & Composition", "Call-to-Action", "Typography", "Color Scheme")
+      - "iconName": (string, one of "Type", "Palette", "Target", "Image", "Lightbulb", "Wand2" - choose based on category)
+      - "suggestions": (array of strings, 3-5 specific, actionable A/B test ideas)
+      - "priority": (string, "Critical", "High", or "Medium" based on potential impact)
+      
+      Example of expected JSON structure:
+      [{
+        "category": "Visual Elements",
+        "iconName": "Palette",
+        "suggestions": ["Test product focus vs lifestyle imagery", "A/B test different background textures"],
+        "priority": "High"
+      }]
+      `;
+
+      const payload = {
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  mimeType: imageFile.type,
+                  data: base64ImageData
+                }
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                "category": { "type": "STRING" },
+                "iconName": { "type": "STRING" },
+                "suggestions": {
+                  "type": "ARRAY",
+                  "items": { "type": "STRING" }
+                },
+                "priority": { "type": "STRING", "enum": ["Critical", "High", "Medium"] }
+              },
+              "required": ["category", "iconName", "suggestions", "priority"]
+            }
+          }
         }
-      ];
-      setVariations(generatedVariations);
-      setIsAnalyzing(false);
-    }, 1500); // Simulate a 1.5 second analysis time for image-based suggestions
-    
-    // Also trigger ad copy generation if there's a description
-    if (adDescription.trim()) {
-      generateAdCopy();
+      };
+
+      const apiKey = "";
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+
+      if (result.candidates && result.candidates.length > 0 &&
+          result.candidates[0].content && result.candidates[0].content.parts &&
+          result.candidates[0].content.parts.length > 0) {
+        const jsonString = result.candidates[0].content.parts[0].text;
+        try {
+          const parsedVariations = JSON.parse(jsonString);
+          setVariations(parsedVariations);
+        } catch (parseError) {
+          console.error("Failed to parse JSON from API response:", parseError);
+          setVariations([{
+            category: "Error",
+            iconName: "Lightbulb",
+            suggestions: ["Could not parse AI suggestions. Please try again."],
+            priority: "Critical"
+          }]);
+        }
+      } else {
+        setVariations([{
+          category: "No Suggestions",
+          iconName: "Lightbulb",
+          suggestions: ["AI could not generate suggestions for this image."],
+          priority: "Medium"
+        }]);
+        console.error("Gemini API response structure unexpected for image analysis:", result);
+      }
+    } catch (error) {
+      setVariations([{
+        category: "Network Error",
+        iconName: "Lightbulb",
+        suggestions: ["Failed to connect to AI for image analysis. Check your connection."],
+        priority: "Critical"
+      }]);
+      console.error("Error calling Gemini API for image analysis:", error);
+    } finally {
+      setIsAnalyzingImage(false);
     }
   };
 
-  // Resets the image upload and analysis state.
+  // Resets all states
   const resetUpload = () => {
     setUploadedImage(null);
     setImagePreview(null);
     setVariations([]);
-    setIsAnalyzing(false);
-    setAdDescription(''); // Reset ad description
-    setAiGeneratedCopy(''); // Reset AI-generated copy
-    setIsGeneratingCopy(false); // Reset copy generation loading
-    // Clear the file input value to allow re-uploading the same file
+    setIsAnalyzing(false); // This is for the simulated analysis
+    setAdDescription('');
+    setAiGeneratedCopy('');
+    setIsGeneratingCopy(false);
+    setIsAnalyzingImage(false); // Reset image analysis loading
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -253,7 +314,7 @@ const AdVariationGenerator = () => {
             {/* Input for Ad Description */}
             <div className="mt-6">
               <label htmlFor="ad-description" className="block text-sm font-medium text-gray-700 mb-2">
-                Or, tell us about your ad:
+                Or, tell us about your ad for copy generation:
               </label>
               <textarea
                 id="ad-description"
@@ -282,7 +343,8 @@ const AdVariationGenerator = () => {
               </button>
             </div>
 
-            {isAnalyzing && (
+            {/* Overall analysis loading indicator (for both image and text-based suggestions) */}
+            {(isAnalyzing || isAnalyzingImage) && (
               <div className="mt-6 text-center">
                 <div className="inline-flex items-center px-6 py-3 bg-purple-100 rounded-full">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600 mr-3"></div>
@@ -325,7 +387,14 @@ const AdVariationGenerator = () => {
               A/B Testing Suggestions
             </h2>
 
-            {variations.length === 0 ? (
+            {isAnalyzingImage ? (
+              <div className="text-center py-12 text-gray-500">
+                <div className="inline-flex items-center px-6 py-3 bg-purple-100 rounded-full">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-600 mr-3"></div>
+                  <span className="text-purple-700 font-medium">Generating image-based suggestions...</span>
+                </div>
+              </div>
+            ) : variations.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p className="text-lg">Upload an image or provide a description to get AI-powered suggestions</p>
@@ -333,32 +402,35 @@ const AdVariationGenerator = () => {
               </div>
             ) : (
               <div className="space-y-6">
-                {variations.map((variation, index) => (
-                  <div key={index} className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center">
-                        <div className="p-2 bg-purple-100 rounded-lg mr-3">
-                          {variation.icon}
+                {variations.map((variation, index) => {
+                  const IconComponent = iconMap[variation.iconName] || Lightbulb; // Fallback icon
+                  return (
+                    <div key={index} className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center">
+                          <div className="p-2 bg-purple-100 rounded-lg mr-3">
+                            <IconComponent className="w-5 h-5 text-purple-600" />
+                          </div>
+                          <h3 className="text-lg font-semibold text-gray-800">
+                            {variation.category}
+                          </h3>
                         </div>
-                        <h3 className="text-lg font-semibold text-gray-800">
-                          {variation.category}
-                        </h3>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(variation.priority)}`}>
+                          {variation.priority}
+                        </span>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(variation.priority)}`}>
-                        {variation.priority}
-                      </span>
+                      
+                      <ul className="space-y-3">
+                        {variation.suggestions.map((suggestion, suggestionIndex) => (
+                          <li key={suggestionIndex} className="flex items-start">
+                            <div className="w-2 h-2 bg-purple-400 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                            <span className="text-gray-700 text-sm leading-relaxed">{suggestion}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    
-                    <ul className="space-y-3">
-                      {variation.suggestions.map((suggestion, suggestionIndex) => (
-                        <li key={suggestionIndex} className="flex items-start">
-                          <div className="w-2 h-2 bg-purple-400 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                          <span className="text-gray-700 text-sm leading-relaxed">{suggestion}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
+                  );
+                })}
 
                 <div className="mt-8 p-6 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-200">
                   <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
@@ -394,4 +466,5 @@ const AdVariationGenerator = () => {
 };
 
 export default AdVariationGenerator;
+
 
